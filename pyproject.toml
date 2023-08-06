@@ -10,6 +10,7 @@ packages = [{include = "deepfake_detection"}]
 python = "^3.10"
 ipykernel = "^6.24.0"
 pandas = "^2.0.3"
+scikit-learn = "^1.3.0"
 
 
 [build-system]
