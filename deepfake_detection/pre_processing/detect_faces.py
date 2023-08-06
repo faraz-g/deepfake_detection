@@ -1,3 +1,3 @@
-import torch 
+from facenet_pytorch.models.mtcnn import MTCNN
 
-print(torch.cuda.is_available())
+
