@@ -10,6 +10,7 @@ cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
 from tqdm import tqdm
 import json
+from pathlib import Path 
 
 def extract_frames_from_video(
         video_path: str, 
@@ -42,7 +43,7 @@ def save_results_map(out_dir, results):
         json.dump(results, f)
 
 if __name__ == "__main__":
-    OUT_DIR = '/mnt/d/exported_images'
+    OUT_DIR = Path('D:\exported_images')
     NUM_FRAMES_TO_EXTRACT = 2
 
     os.makedirs(OUT_DIR, exist_ok=True)
