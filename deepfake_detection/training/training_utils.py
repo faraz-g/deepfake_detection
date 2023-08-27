@@ -5,7 +5,7 @@ from functools import partial
 from torch.nn.modules.pooling import AdaptiveAvgPool2d
 from torch.nn.modules.linear import Linear
 from typing import Any
-from torch.optim.lr_scheduler import LRScheduler, PolynomialLR
+from torch.optim.lr_scheduler import LRScheduler, PolynomialLR, ExponentialLR
 
 EFFICIENTNET_CONFIGS = {
     "b4" : {
@@ -61,6 +61,8 @@ def get_scheduler(
 ) -> LRScheduler:
     if scheduler_type == "poly":
         scheduler = PolynomialLR(optimizer=optimizer, **params)
+    elif scheduler_type == "exp":
+        scheduler = ExponentialLR(optimizer=optimizer, **params)
     else:
         raise NotImplementedError("Must be poly")
 

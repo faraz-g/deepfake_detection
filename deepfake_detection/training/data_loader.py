@@ -42,7 +42,7 @@ class DeepFakeDetectionDataset(Dataset):
 
         image = img_to_tensor(image)
         label = 1 if label.lower() == "fake" else 0 
-        label = torch.tensor(label, dtype=torch.long)
+        label = torch.tensor(label, dtype=torch.float)
 
         return image, label
     
