@@ -13,11 +13,21 @@ class SchedulerConfig(BaseModel):
 
 class TrainingConfig(BaseModel):
     model_key: str
+    batch_size: int
+    batches_per_epoch: int 
+    max_epochs: int
+    img_height: int 
+    img_width: int
     optim_config: OptimizerConfig
     scheduler_config: SchedulerConfig
 
 default_config = TrainingConfig(
     model_key="b4",
+    batch_size=16,
+    batches_per_epoch=2500,
+    max_epochs=30,
+    img_height=380,
+    img_width=380,
     optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
     scheduler_config=SchedulerConfig(scheduler_type="poly", params={"power": 0.9, "total_iters": 30})
 )

@@ -5,6 +5,10 @@ import os
 from deepfake_detection.training.configurator import get_config
 from deepfake_detection.training.training_utils import Classifier, get_optimizer, get_scheduler
 from torch.nn.modules.loss import BCEWithLogitsLoss
+from deepfake_detection.training.data_loader import DeepFakeDetectionDataset
+from torch.utils.data.dataloader import DataLoader
+from deepfake_detection.training.augmentations import train_augmentations, val_augmentations
+
 
 def train(
     num_epochs: int,
@@ -40,13 +44,38 @@ def train(
         params=config.scheduler_config.params
     )
 
+    loss = 1
 
+    batch_size = config.batch_size
 
+    data_train = DeepFakeDetectionDataset(
+        mode="train",
+        data_path="train.csv",
+        data_folder_path=DATA_PATH,
+        augmentations=train_augmentations(height=config.img_height, width=config.img_width)
+    )    
+    train_loader = DataLoader(
+        data_train, 
+        batch_size=config.batch_size, 
+        pin_memory=False,
+        shuffle=True,
+        drop_last=True
+    )
+
+    start_epoch = 0
+    max_epoch = config.max_epochs
+    for data in train_loader:
+        images = data[0]
+        labels = data[1]
+
+        images = images.to(device)
+        labels = labels.to(device)
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_epochs', default=300, type=int)
     parser.add_argument('--resume', default='', type=str)
-    parser.add_argument('--config', type=str)
+    parser.add_argument('--config_name', type=str, default="default_config")
     parser.add_argument('--data_dir', type=str, default=DATA_PATH)
     parser.add_argument('--out_dir', type=str, default=MODEL_OUT_PATH)
 

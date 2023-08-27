@@ -1,13 +1,42 @@
-from facenet_pytorch.models.mtcnn import MTCNN, extract_face
 import json
+import os
 from os import cpu_count
+from pathlib import Path
+from typing import Any
+
+import cv2
+import pandas as pd
+from facenet_pytorch.models.mtcnn import MTCNN, extract_face
+from PIL import Image, ImageDraw
+from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from deepfake_detection.data.image_dataset import ImageDataset
-from deepfake_detection.defaults import DATA_PATH
-from pathlib import Path
-from PIL import Image, ImageDraw
 
+from deepfake_detection.defaults import DATA_PATH
+
+
+def load_image(image_path: str) -> Image:
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(image)    
+    
+    return image
+
+class ImageDataset(Dataset):
+    def __init__(self, images_data_path: str | Path, data_path: str | Path) -> None:
+        self.images_df = pd.read_csv(os.path.join(data_path, images_data_path))
+        self.drive_path = data_path
+
+    def __getitem__(self, index: int) -> Any:
+        image_name = self.images_df.iloc[index, 0]
+        img_path = os.path.join(self.drive_path, image_name)
+        image = load_image(image_path=img_path)
+
+        return image, image_name
+
+    def __len__(self) -> int:
+        return len(self.images_df)
+    
 detector = MTCNN(select_largest=True, keep_all=False, post_process=False, device="cuda:0")
 
 def draw_image(image, boxes, points):
