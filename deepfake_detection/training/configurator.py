@@ -17,6 +17,7 @@ class TrainingConfig(BaseModel):
     batch_size: int
     batches_per_epoch: int 
     max_epochs: int
+    evaluation_frequency: int
     img_height: int 
     img_width: int
     optim_config: OptimizerConfig
@@ -28,6 +29,7 @@ default_config = TrainingConfig(
     batch_size=16,
     batches_per_epoch=2500,
     max_epochs=30,
+    evaluation_frequency=1,
     img_height=380,
     img_width=380,
     optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),

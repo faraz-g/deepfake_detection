@@ -44,7 +44,7 @@ def _single_epoch(
 
     max_batches = config.batches_per_epoch
 
-    model = model.train(mode=True)
+    model = model.train()
 
     for i, data in enumerate(train_loader):
         images = data[0]
@@ -85,8 +85,17 @@ def _single_epoch(
         if i + 1 == max_batches:
             break
 
+def _evaluate(
+    epoch: int,
+    model: torch.nn.Module,
+    val_loader: DataLoader, 
+):
+    model = model.eval()
+    # TODO Implement this.
+
 def train(
     resume: str,
+    prefix: str,
     config_name: str,
     data_dir: str,
     out_dir: str 
@@ -132,6 +141,20 @@ def train(
         drop_last=True
     )
 
+    data_val = DeepFakeDetectionDataset(
+        mode="val",
+        data_path="val.csv",
+        data_folder_path=DATA_PATH,
+        augmentations=val_augmentations(height=config.img_height, width=config.img_width)
+    )    
+    val_loader = DataLoader(
+        data_val, 
+        batch_size=config.batch_size * 2, 
+        pin_memory=False,
+        shuffle=False,
+        drop_last=True
+    )
+
     start_epoch = 1
     max_epoch = config.max_epochs
 
@@ -147,10 +170,21 @@ def train(
             config=config,
             device=device
         )
+
+        out_name = f"{prefix}{config.model_key}_{epoch}"
+        out_path = os.path.join(out_dir, out_name)
+        torch.save({"epoch": epoch, "state": model.state_dict()}, out_path)     
+        if epoch % config.evaluation_frequency == 0:
+            _evaluate(
+                epoch=epoch,
+                model=model,
+                val_loader=val_loader
+            )
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume', default='', type=str)
+    parser.add_argument('--prefix', default='', type=str)
     parser.add_argument('--config_name', type=str, default="default_config")
     parser.add_argument('--data_dir', type=str, default=DATA_PATH)
     parser.add_argument('--out_dir', type=str, default=MODEL_OUT_PATH)
