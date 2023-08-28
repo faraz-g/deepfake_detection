@@ -26,14 +26,14 @@ class TrainingConfig(BaseModel):
 default_config = TrainingConfig(
     model_key="b4",
     seed=111,
-    batch_size=16,
-    batches_per_epoch=2500,
-    max_epochs=30,
+    batch_size=20,
+    batches_per_epoch=5000,
+    max_epochs=80,
     evaluation_frequency=1,
     img_height=380,
     img_width=380,
     optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
-    scheduler_config=SchedulerConfig(scheduler_type="exp", params={"gamma" : 0.999})
+    scheduler_config=SchedulerConfig(scheduler_type="poly", params={"total_iters" : 100000, "power" : 0.9})
 )
 
 
