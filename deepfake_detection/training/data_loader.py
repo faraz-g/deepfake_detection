@@ -36,9 +36,9 @@ class DeepFakeDetectionDataset(Dataset):
         if self.augmentations is not None:
             image = self.augmentations(image=image)["image"]
 
-        # os.makedirs("test_images", exist_ok=True)
-        # debug_out_path = os.path.join("test_images", f"{label}_{os.path.basename(cropped_face_path)}")
-        # cv2.imwrite(debug_out_path, image)
+        os.makedirs("test_outputs", exist_ok=True)
+        debug_out_path = os.path.join("test_outputs", f"{label}_{os.path.basename(cropped_face_path)}")
+        cv2.imwrite(debug_out_path, image)
 
         image = img_to_tensor(image)
         label = 1 if label.lower() == "fake" else 0 

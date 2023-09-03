@@ -9,6 +9,7 @@ from deepfake_detection.training.data_loader import DeepFakeDetectionDataset
 from torch.utils.data.dataloader import DataLoader
 from deepfake_detection.training.augmentations import train_augmentations, val_augmentations
 import json
+import tqdm
 
 torch.backends.cudnn.benchmark = True
 
@@ -88,10 +89,22 @@ def _single_epoch(
 def _evaluate(
     epoch: int,
     model: torch.nn.Module,
-    val_loader: DataLoader, 
+    val_loader: DataLoader,
+    device: torch.device 
 ):
     model = model.eval()
-    # TODO Implement this.
+    with torch.no_grad():
+        for data in tqdm(val_loader):
+            images = data[0]
+            labels = data[1]
+
+            images = images.to(device)
+            labels = labels.to(device)
+
+            out_labels = model(images)
+            
+            out_labels[out_labels < 0] = 0
+            out_labels[out_labels > 0] = 1
 
 def train(
     resume: str,
