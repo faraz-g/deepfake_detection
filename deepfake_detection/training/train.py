@@ -9,7 +9,8 @@ from deepfake_detection.training.data_loader import DeepFakeDetectionDataset
 from torch.utils.data.dataloader import DataLoader
 from deepfake_detection.training.augmentations import train_augmentations, val_augmentations
 import json
-import tqdm
+from tqdm import tqdm
+from sklearn.metrics import log_loss
 
 torch.backends.cudnn.benchmark = True
 
@@ -90,7 +91,8 @@ def _evaluate(
     epoch: int,
     model: torch.nn.Module,
     val_loader: DataLoader,
-    device: torch.device 
+    device: torch.device,
+    config: TrainingConfig,
 ):
     model = model.eval()
     with torch.no_grad():
@@ -102,9 +104,16 @@ def _evaluate(
             labels = labels.to(device)
 
             out_labels = model(images)
-            
-            out_labels[out_labels < 0] = 0
-            out_labels[out_labels > 0] = 1
+            out_labels = torch.sigmoid(out_labels)
+
+            fake_idx = out_labels >= config.fake_threshold
+            real_idx = out_labels < config.fake_threshold
+
+            fake_loss = log_loss(out_labels[fake_idx], out_labels[fake_idx], labels=[0, 1])
+            real_loss = log_loss(out_labels[real_idx], out_labels[real_idx], labels=[0, 1])
+
+            print(f"{fake_loss} fake_loss")
+            print(f"{real_loss} real_loss")
 
 def train(
     resume: str,
@@ -115,14 +124,19 @@ def train(
 ):
     os.makedirs(out_dir, exist_ok=True)
     config = get_config(config_name=config_name)
-
     print("Training with config: \n", json.dumps(config.model_dump(), indent=1))
+    model = Classifier(model_key=config.model_key)
+    
+    if resume:
+        saved_model = torch.load(os.path.join(out_dir, resume))
+        start_epoch = saved_model['epoch'] + 1
+        model.load_state_dict(saved_model['state'])
+    else:
+        start_epoch = 1
+
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
     print(f"Using device: {device} for training")
-
-    model = Classifier(model_key=config.model_key)
     model = model.to(device)
     loss_function = BCEWithLogitsLoss().to(device)
 
@@ -164,34 +178,35 @@ def train(
         data_val, 
         batch_size=config.batch_size * 2, 
         pin_memory=False,
-        shuffle=False,
+        shuffle=True,
         drop_last=True
     )
 
-    start_epoch = 1
     max_epoch = config.max_epochs
 
     for epoch in range(start_epoch, max_epoch):
         print(f"Epoch: {epoch}")
-        _single_epoch(
-            epoch=epoch,
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            loss_function=loss_function,
-            train_loader=train_loader,
-            config=config,
-            device=device
-        )
+        # _single_epoch(
+        #     epoch=epoch,
+        #     model=model,
+        #     optimizer=optimizer,
+        #     scheduler=scheduler,
+        #     loss_function=loss_function,
+        #     train_loader=train_loader,
+        #     config=config,
+        #     device=device
+        # )
 
-        out_name = f"{prefix}{config.model_key}_{epoch}"
-        out_path = os.path.join(out_dir, out_name)
-        torch.save({"epoch": epoch, "state": model.state_dict()}, out_path)     
+        # out_name = f"{prefix}{config.model_key}_{epoch}"
+        # out_path = os.path.join(out_dir, out_name)
+        # torch.save({"epoch": epoch, "state": model.state_dict()}, out_path)     
         if epoch % config.evaluation_frequency == 0:
             _evaluate(
                 epoch=epoch,
                 model=model,
-                val_loader=val_loader
+                val_loader=val_loader,
+                device=device,
+                config=config
             )
     
 if __name__ == "__main__":

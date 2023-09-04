@@ -20,6 +20,7 @@ class TrainingConfig(BaseModel):
     evaluation_frequency: int
     img_height: int 
     img_width: int
+    fake_threshold: float
     optim_config: OptimizerConfig
     scheduler_config: SchedulerConfig
 
@@ -32,6 +33,7 @@ default_config = TrainingConfig(
     evaluation_frequency=1,
     img_height=380,
     img_width=380,
+    fake_threshold=0.8,
     optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
     scheduler_config=SchedulerConfig(scheduler_type="poly", params={"total_iters" : 100000, "power" : 0.9})
 )
