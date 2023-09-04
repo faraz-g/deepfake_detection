@@ -11,6 +11,7 @@ from deepfake_detection.training.augmentations import train_augmentations, val_a
 import json
 from tqdm import tqdm
 from sklearn.metrics import log_loss
+import numpy as np 
 
 torch.backends.cudnn.benchmark = True
 
@@ -48,78 +49,90 @@ def _single_epoch(
 
     model = model.train()
 
-    for i, data in enumerate(train_loader):
-        images = data[0]
-        labels = data[1]
+    with tqdm(total=(max_batches), desc=f"Training Epoch: {epoch}", ncols=0) as pbar:
+        for i, data in enumerate(train_loader):
+            images = data[0]
+            labels = data[1]
 
-        num_images = images.size(0)
+            num_images = images.size(0)
 
-        images = images.to(device)
-        labels = labels.to(device)
+            images = images.to(device)
+            labels = labels.to(device)
 
-        out_labels = model(images)
-        out_labels = out_labels.squeeze(1)
-        fake_image_indexes = labels == 1
-        real_image_indexes = labels == 0
+            out_labels = model(images)
+            out_labels = out_labels.squeeze(1)
+            fake_image_indexes = labels == 1
+            real_image_indexes = labels == 0
 
-        if torch.sum(fake_image_indexes * 1) > 0:
-            fake_loss = loss_function(out_labels[fake_image_indexes], labels[fake_image_indexes])
-        else:
-            fake_loss = 0
+            if torch.sum(fake_image_indexes * 1) > 0:
+                fake_loss = loss_function(out_labels[fake_image_indexes], labels[fake_image_indexes])
+            else:
+                fake_loss = 0
 
-        if torch.sum(real_image_indexes * 1) > 0:
-            real_loss = loss_function(out_labels[real_image_indexes], labels[real_image_indexes])
-        else:
-            real_loss = 0
+            if torch.sum(real_image_indexes * 1) > 0:
+                real_loss = loss_function(out_labels[real_image_indexes], labels[real_image_indexes])
+            else:
+                real_loss = 0
 
-        all_loss = (fake_loss + real_loss) / 2
+            all_loss = (fake_loss + real_loss) / 2
 
-        all_loss_tracker.update(all_loss.item(), num_images)
-        real_loss_tracker.update(0 if real_loss == 0 else real_loss.item(), num_images)
-        fake_loss_tracker.update(0 if fake_loss == 0 else fake_loss.item(), num_images)
+            all_loss_tracker.update(all_loss.item(), num_images)
+            real_loss_tracker.update(0 if real_loss == 0 else real_loss.item(), num_images)
+            fake_loss_tracker.update(0 if fake_loss == 0 else fake_loss.item(), num_images)
 
-        print(f"E:{epoch}I:{i} LR: {scheduler.get_lr()[0]} Total Loss: {all_loss_tracker.average} Real Loss: {real_loss_tracker.average} Fake Loss: {fake_loss_tracker.average}")
-        optimizer.zero_grad()
-        all_loss.backward()
-        optimizer.step()
-        scheduler.step()    
+            optimizer.zero_grad()
+            all_loss.backward()
+            optimizer.step()
+            scheduler.step()
+            pbar.set_postfix_str(f"LR: {scheduler.get_last_lr()[0]:.4f} Total Loss: {all_loss_tracker.average:.4f} Real Loss: {real_loss_tracker.average:.4f} Fake Loss: {fake_loss_tracker.average:.4f}")
+            pbar.update()    
 
-        if i + 1 == max_batches:
-            break
+            if i + 1 == max_batches:
+                break
 
 def _evaluate(
     epoch: int,
     model: torch.nn.Module,
     val_loader: DataLoader,
     device: torch.device,
-    config: TrainingConfig,
 ):
     model = model.eval()
+
+    predictions = [] 
+    ground_truth = []
+
     with torch.no_grad():
-        for data in tqdm(val_loader):
+        pbar = tqdm(val_loader, desc=f"Validating Epoch: {epoch}", ncols=0)
+        for data in pbar:
             images = data[0]
             labels = data[1]
 
             images = images.to(device)
-            labels = labels.to(device)
-
             out_labels = model(images)
-            out_labels = torch.sigmoid(out_labels)
 
-            fake_idx = out_labels >= config.fake_threshold
-            real_idx = out_labels < config.fake_threshold
+            labels = labels.to("cpu").numpy().tolist()
+            preds = torch.sigmoid(out_labels).squeeze(1).to("cpu").numpy().tolist()
 
-            fake_loss = log_loss(out_labels[fake_idx], out_labels[fake_idx], labels=[0, 1])
-            real_loss = log_loss(out_labels[real_idx], out_labels[real_idx], labels=[0, 1])
+            predictions.extend(preds)
+            ground_truth.extend(labels)
 
-            print(f"{fake_loss} fake_loss")
-            print(f"{real_loss} real_loss")
+    ground_truth = np.array(ground_truth)
+    predictions = np.array(predictions)
+
+    fake_image_indexes = ground_truth == 1
+    real_image_indexes = ground_truth == 0
+
+    fake_loss = log_loss(ground_truth[fake_image_indexes], predictions[fake_image_indexes], labels=[0, 1])
+    real_loss = log_loss(ground_truth[real_image_indexes], predictions[real_image_indexes], labels=[0, 1])
+
+    combined_loss = (fake_loss + real_loss) / 2
+    
+    return combined_loss
 
 def train(
     resume: str,
     prefix: str,
     config_name: str,
-    data_dir: str,
     out_dir: str 
 ):
     os.makedirs(out_dir, exist_ok=True)
@@ -131,9 +144,10 @@ def train(
         saved_model = torch.load(os.path.join(out_dir, resume))
         start_epoch = saved_model['epoch'] + 1
         model.load_state_dict(saved_model['state'])
+        best_val_loss = saved_model['best_val_loss']
     else:
         start_epoch = 1
-
+        best_val_loss = float("inf")
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device} for training")
@@ -178,43 +192,56 @@ def train(
         data_val, 
         batch_size=config.batch_size * 2, 
         pin_memory=False,
-        shuffle=True,
+        shuffle=False,
         drop_last=True
     )
 
     max_epoch = config.max_epochs
 
-    for epoch in range(start_epoch, max_epoch):
-        print(f"Epoch: {epoch}")
-        # _single_epoch(
-        #     epoch=epoch,
-        #     model=model,
-        #     optimizer=optimizer,
-        #     scheduler=scheduler,
-        #     loss_function=loss_function,
-        #     train_loader=train_loader,
-        #     config=config,
-        #     device=device
-        # )
+    out_name = f"{prefix}_{config.model_key}"
+    out_path = os.path.join(out_dir, out_name)
+    os.makedirs(out_path, exist_ok=True)
+    if len(os.listdir(out_path)) > 0 and not resume:
+        raise NotImplementedError("Need to resume if out_dir is not empty")
 
-        # out_name = f"{prefix}{config.model_key}_{epoch}"
-        # out_path = os.path.join(out_dir, out_name)
-        # torch.save({"epoch": epoch, "state": model.state_dict()}, out_path)     
+    epochs_since_best_loss = 0
+    for epoch in range(start_epoch, max_epoch):
+        _single_epoch(
+            epoch=epoch,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            loss_function=loss_function,
+            train_loader=train_loader,
+            config=config,
+            device=device
+        )
+
         if epoch % config.evaluation_frequency == 0:
-            _evaluate(
+            validation_loss = _evaluate(
                 epoch=epoch,
                 model=model,
                 val_loader=val_loader,
                 device=device,
-                config=config
             )
-    
+
+            if validation_loss < best_val_loss:
+                epochs_since_best_loss = 0
+                best_val_loss = validation_loss
+                torch.save({"epoch": epoch, "state": model.state_dict(), "best_val_loss": best_val_loss}, os.path.join(out_path, "best"))     
+            else:
+                epochs_since_best_loss += 1
+        
+        torch.save({"epoch": epoch, "state": model.state_dict(), "best_val_loss": best_val_loss}, os.path.join(out_path, f"{epoch}"))     
+        torch.save({"epoch": epoch, "state": model.state_dict(), "best_val_loss": best_val_loss}, os.path.join(out_path, "last"))     
+        if epochs_since_best_loss > config.early_stopping_threshold:
+            break
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume', default='', type=str)
     parser.add_argument('--prefix', default='', type=str)
     parser.add_argument('--config_name', type=str, default="default_config")
-    parser.add_argument('--data_dir', type=str, default=DATA_PATH)
     parser.add_argument('--out_dir', type=str, default=MODEL_OUT_PATH)
 
     args = parser.parse_args()
