@@ -224,7 +224,7 @@ def train(
                 val_loader=val_loader,
                 device=device,
             )
-
+            print(f"Validation Loss at epoch {epoch}: {validation_loss}. Best Loss: {best_val_loss}")
             if validation_loss < best_val_loss:
                 epochs_since_best_loss = 0
                 best_val_loss = validation_loss
