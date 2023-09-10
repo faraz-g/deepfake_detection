@@ -949,6 +949,20 @@ files = [
 ]
 
 [[package]]
+name = "pilgram"
+version = "1.2.1"
+description = "library for instagram filters"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"
+files = [
+    {file = "pilgram-1.2.1-py3-none-any.whl", hash = "sha256:08b9130e06ff40b51acabc313660621895259ab206d76ded4bc73a3b69f6f9c2"},
+    {file = "pilgram-1.2.1.tar.gz", hash = "sha256:a269eb1899958afbaa54163a2779d296fb4fc8674d994fbbeede3e422bbc9387"},
+]
+
+[package.dependencies]
+numpy = "*"
+
+[[package]]
 name = "pillow"
 version = "10.0.0"
 description = "Python Imaging Library (Fork)"
@@ -2026,4 +2040,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "d471250a23eba502051a94eeaed9449fc7a893e2999058a67ca1ac79d67d7146"
+content-hash = "67c23f2ab7b124a56361fccb736c35750f191381df685df147bb205e7b82ee89"

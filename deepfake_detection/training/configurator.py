@@ -1,29 +1,33 @@
 from pydantic import BaseModel
 from typing import Any
 
+
 class OptimizerConfig(BaseModel):
     optim_type: str
     learning_rate: float
     momentum: float
     weight_decay: float
 
+
 class SchedulerConfig(BaseModel):
     scheduler_type: str
     params: dict[str, Any]
+
 
 class TrainingConfig(BaseModel):
     model_key: str
     seed: int
     batch_size: int
-    batches_per_epoch: int 
+    batches_per_epoch: int
     max_epochs: int
     evaluation_frequency: int
-    img_height: int 
+    img_height: int
     img_width: int
     fake_threshold: float
     early_stopping_threshold: int
     optim_config: OptimizerConfig
     scheduler_config: SchedulerConfig
+
 
 default_config = TrainingConfig(
     model_key="b4",
@@ -36,15 +40,17 @@ default_config = TrainingConfig(
     img_width=380,
     fake_threshold=0.8,
     early_stopping_threshold=3,
-    optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
-    scheduler_config=SchedulerConfig(scheduler_type="poly", params={"total_iters" : 300000, "power" : 0.9})
+    optim_config=OptimizerConfig(
+        optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4
+    ),
+    scheduler_config=SchedulerConfig(
+        scheduler_type="poly", params={"total_iters": 300000, "power": 0.9}
+    ),
 )
 
 
 def get_config(config_name: str) -> TrainingConfig:
-    configs = {
-        "default_config": default_config
-    }
+    configs = {"default_config": default_config}
 
     config = configs[config_name]
 

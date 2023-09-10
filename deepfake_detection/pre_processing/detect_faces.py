@@ -15,12 +15,13 @@ from tqdm import tqdm
 from deepfake_detection.defaults import DATA_PATH
 
 
-def load_image(image_path: str) -> Image:
+def load_image(image_path: str) -> Image.Image:
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(image)    
-    
+    image = Image.fromarray(image)
+
     return image
+
 
 class ImageDataset(Dataset):
     def __init__(self, images_data_path: str | Path, data_path: str | Path) -> None:
@@ -36,24 +37,31 @@ class ImageDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.images_df)
-    
-detector = MTCNN(select_largest=True, keep_all=False, post_process=False, device="cuda:0")
+
+
+detector = MTCNN(
+    select_largest=True, keep_all=False, post_process=False, device="cuda:0"
+)
+
 
 def draw_image(image, boxes, points):
     img_draw = image.copy()
     draw = ImageDraw.Draw(img_draw)
     for i, (box, point) in enumerate(zip(boxes, points)):
         draw.rectangle(box, width=5)
-        extract_face(image, box, save_path='detected_face_{}.png'.format(i))
-    img_draw.save('annotated_faces.png')
+        extract_face(image, box, save_path="detected_face_{}.png".format(i))
+    img_draw.save("annotated_faces.png")
 
-def detect_faces_in_images(
-    images_data_path: str | Path,
-    data_path: str | Path
-):
+
+def detect_faces_in_images(images_data_path: str | Path, data_path: str | Path):
     dataset = ImageDataset(images_data_path=images_data_path, data_path=data_path)
-    data_loader = DataLoader(dataset=dataset, shuffle=False, num_workers=cpu_count() - 1, collate_fn=lambda x: x)
-    
+    data_loader = DataLoader(
+        dataset=dataset,
+        shuffle=False,
+        num_workers=cpu_count() - 1,
+        collate_fn=lambda x: x,
+    )
+
     all_results = {}
     for item in tqdm(data_loader):
         image, image_name = item[0]
@@ -62,27 +70,28 @@ def detect_faces_in_images(
             boxes = [box.tolist() if box is not None else box for box in boxes]
             boxes = boxes[0]
         if points is not None:
-            points = [point.tolist() if point is not None else point for point in points]
+            points = [
+                point.tolist() if point is not None else point for point in points
+            ]
             points = points[0]
         if probs is not None:
             probs = probs.tolist()
             probs = probs[0]
-            
-        image_result = {
-            "boxes" : boxes,
-            "probs": probs,
-            "points" : points
-        }
-        
+
+        image_result = {"boxes": boxes, "probs": probs, "points": points}
+
         all_results[image_name] = image_result
 
     return all_results
+
 
 if __name__ == "__main__":
     data_path = DATA_PATH
     images_data_path = "images_data.csv"
 
-    results = detect_faces_in_images(images_data_path=images_data_path, data_path=data_path)
+    results = detect_faces_in_images(
+        images_data_path=images_data_path, data_path=data_path
+    )
 
-    with open(DATA_PATH / "extracted_faces_two.json", 'w') as f:
+    with open(DATA_PATH / "extracted_faces_two.json", "w") as f:
         json.dump(results, f)
