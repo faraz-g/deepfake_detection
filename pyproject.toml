@@ -18,6 +18,7 @@ timm = "^0.9.5"
 tensorboardx = "^2.6.2"
 pydantic = "^2.3.0"
 pilgram = "^1.2.1"
+matplotlib = "^3.7.2"
 
 
 [build-system]
