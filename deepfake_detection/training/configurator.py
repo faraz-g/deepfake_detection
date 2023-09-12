@@ -40,17 +40,28 @@ default_config = TrainingConfig(
     img_width=380,
     fake_threshold=0.8,
     early_stopping_threshold=3,
-    optim_config=OptimizerConfig(
-        optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4
-    ),
-    scheduler_config=SchedulerConfig(
-        scheduler_type="poly", params={"total_iters": 300000, "power": 0.9}
-    ),
+    optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
+    scheduler_config=SchedulerConfig(scheduler_type="poly", params={"total_iters": 300000, "power": 0.9}),
+)
+
+default_config_b7 = TrainingConfig(
+    model_key="b7",
+    seed=111,
+    batch_size=8,
+    batches_per_epoch=5000,
+    max_epochs=80,
+    evaluation_frequency=2,
+    img_height=380,
+    img_width=380,
+    fake_threshold=0.8,
+    early_stopping_threshold=3,
+    optim_config=OptimizerConfig(optim_type="SGD", learning_rate=0.01, momentum=0.9, weight_decay=1e-4),
+    scheduler_config=SchedulerConfig(scheduler_type="poly", params={"total_iters": 300000, "power": 0.9}),
 )
 
 
 def get_config(config_name: str) -> TrainingConfig:
-    configs = {"default_config": default_config}
+    configs = {"default_config": default_config, "default_config_b7": default_config_b7}
 
     config = configs[config_name]
 

@@ -1,4 +1,4 @@
-from timm.models.efficientnet import tf_efficientnet_b4_ns, tf_efficientnet_b3_ns
+from timm.models.efficientnet import tf_efficientnet_b7_ns, tf_efficientnet_b4_ns, tf_efficientnet_b3_ns
 from torch import nn
 from torch import optim
 from functools import partial
@@ -17,6 +17,11 @@ EFFICIENTNET_CONFIGS = {
         "init_func": tf_efficientnet_b3_ns,
         "init_args": {"pretrained": True, "drop_path_rate": 0.2},
         "num_features": 1536,
+    },
+    "b7": {
+        "init_func": tf_efficientnet_b7_ns,
+        "init_args": {"pretrained": True, "drop_path_rate": 0.2},
+        "num_features": 2560,
     },
 }
 
@@ -56,9 +61,7 @@ def get_optimizer(
     return optimizer(params=model.parameters(), lr=lr, weight_decay=weight_decay)
 
 
-def get_scheduler(
-    optimizer: optim.Optimizer, scheduler_type: str, params: dict[str, Any]
-) -> LRScheduler:
+def get_scheduler(optimizer: optim.Optimizer, scheduler_type: str, params: dict[str, Any]) -> LRScheduler:
     if scheduler_type == "poly":
         scheduler = PolynomialLR(optimizer=optimizer, **params)
     elif scheduler_type == "exp":
