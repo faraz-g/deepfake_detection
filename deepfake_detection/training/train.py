@@ -74,28 +74,20 @@ def _single_epoch(
             real_image_indexes = labels == 0
 
             if torch.sum(fake_image_indexes * 1) > 0:
-                fake_loss = loss_function(
-                    out_labels[fake_image_indexes], labels[fake_image_indexes]
-                )
+                fake_loss = loss_function(out_labels[fake_image_indexes], labels[fake_image_indexes])
             else:
                 fake_loss = 0
 
             if torch.sum(real_image_indexes * 1) > 0:
-                real_loss = loss_function(
-                    out_labels[real_image_indexes], labels[real_image_indexes]
-                )
+                real_loss = loss_function(out_labels[real_image_indexes], labels[real_image_indexes])
             else:
                 real_loss = 0
 
             all_loss = (fake_loss + real_loss) / 2
 
             all_loss_tracker.update(all_loss.item(), num_images)
-            real_loss_tracker.update(
-                0 if real_loss == 0 else real_loss.item(), num_images
-            )
-            fake_loss_tracker.update(
-                0 if fake_loss == 0 else fake_loss.item(), num_images
-            )
+            real_loss_tracker.update(0 if real_loss == 0 else real_loss.item(), num_images)
+            fake_loss_tracker.update(0 if fake_loss == 0 else fake_loss.item(), num_images)
 
             optimizer.zero_grad()
             all_loss.backward()
@@ -142,12 +134,8 @@ def _evaluate(
     fake_image_indexes = ground_truth == 1
     real_image_indexes = ground_truth == 0
 
-    fake_loss = log_loss(
-        ground_truth[fake_image_indexes], predictions[fake_image_indexes], labels=[0, 1]
-    )
-    real_loss = log_loss(
-        ground_truth[real_image_indexes], predictions[real_image_indexes], labels=[0, 1]
-    )
+    fake_loss = log_loss(ground_truth[fake_image_indexes], predictions[fake_image_indexes], labels=[0, 1])
+    real_loss = log_loss(ground_truth[real_image_indexes], predictions[real_image_indexes], labels=[0, 1])
 
     combined_loss = (fake_loss + real_loss) / 2
 
@@ -192,9 +180,7 @@ def train(resume: str, prefix: str, config_name: str, out_dir: str):
         mode="train",
         data_path="train.csv",
         data_folder_path=DATA_PATH,
-        augmentations=train_augmentations(
-            height=config.img_height, width=config.img_width
-        ),
+        augmentations=train_augmentations(height=config.img_height, width=config.img_width),
     )
     train_loader = DataLoader(
         data_train,
@@ -208,9 +194,7 @@ def train(resume: str, prefix: str, config_name: str, out_dir: str):
         mode="val",
         data_path="val.csv",
         data_folder_path=DATA_PATH,
-        augmentations=val_augmentations(
-            height=config.img_height, width=config.img_width
-        ),
+        augmentations=val_augmentations(height=config.img_height, width=config.img_width),
     )
     val_loader = DataLoader(
         data_val,
@@ -248,9 +232,6 @@ def train(resume: str, prefix: str, config_name: str, out_dir: str):
                 val_loader=val_loader,
                 device=device,
             )
-            print(
-                f"Validation Loss at epoch {epoch}: {validation_loss}. Best Loss: {best_val_loss}"
-            )
             if validation_loss < best_val_loss:
                 epochs_since_best_loss = 0
                 best_val_loss = validation_loss
@@ -265,6 +246,7 @@ def train(resume: str, prefix: str, config_name: str, out_dir: str):
             else:
                 epochs_since_best_loss += 1
 
+            print(f"Validation Loss at epoch {epoch}: {validation_loss}. Best Loss: {best_val_loss}")
         torch.save(
             {
                 "epoch": epoch,
