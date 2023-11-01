@@ -163,3 +163,5 @@ data/*
 *.png
 model_outputs/
 test_outputs/
+experiment_outputs/
+*.txt

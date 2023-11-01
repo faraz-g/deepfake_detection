@@ -1,7 +1,14 @@
 #!/usr/bin/env python
-""" Downloads FaceForensics++ and Deep Fake Detection public data release
+""" Downloads FaceForensics public data release
 Example usage:
-    see -h or https://github.com/ondyari/FaceForensics
+    # source-to-target
+    python download.py -d \<'compressed' or 'raw'> \<output folder>   
+    # self-reenactment 
+    python download.py -d \<'selfreenactment_compressed' or 'selfreenactment_raw'> \<output folder>  
+    # cropped self-reenactment images
+    python download.py -d selfreenactment_images' \<output folder>  
+    # only original videos
+    python download.py -d original_videos \<output filename>
 """
 # -*- coding: utf-8 -*-
 import argparse
@@ -9,272 +16,165 @@ import os
 import urllib
 import urllib.request
 import tempfile
-import time
-import sys
-import json
-import random
-from tqdm import tqdm
 from os.path import join
 
 
-# URLs and filenames
-FILELIST_URL = "misc/filelist.json"
-DEEPFEAKES_DETECTION_URL = "misc/deepfake_detection_filenames.json"
-DEEPFAKES_MODEL_NAMES = [
-    "decoder_A.h5",
-    "decoder_B.h5",
-    "encoder.h5",
+SERVER_URL = "http://kaldir.vc.in.tum.de/FaceForensics/"
+TOS_URL = SERVER_URL + "webpage/FaceForensics_TOS.pdf"
+BASE_URL = SERVER_URL + "v1_cargo/"
+ORIGINAL_VIDEOS_URL = BASE_URL + "original_videos.tar.gz"
+RELEASE_DATASET_SIZE = {"raw": "~3.5TB", "compressed": "~130GB", "images": "~135GB"}
+DATASET_TYPES = [
+    "raw",
+    "compressed",
+    "selfreenactment_raw",
+    "selfreenactment_compressed",
+    "original_videos",
+    "selfreenactment_images",
+    "source_to_target_images",
 ]
-
-# Parameters
-DATASETS = {
-    "original_youtube_videos": "misc/downloaded_youtube_videos.zip",
-    "original_youtube_videos_info": "misc/downloaded_youtube_videos_info.zip",
-    "original": "original_sequences/youtube",
-    "DeepFakeDetection_original": "original_sequences/actors",
-    "Deepfakes": "manipulated_sequences/Deepfakes",
-    "DeepFakeDetection": "manipulated_sequences/DeepFakeDetection",
-    "Face2Face": "manipulated_sequences/Face2Face",
-    "FaceShifter": "manipulated_sequences/FaceShifter",
-    "FaceSwap": "manipulated_sequences/FaceSwap",
-    "NeuralTextures": "manipulated_sequences/NeuralTextures",
-}
-ALL_DATASETS = [
-    "original",
-    "DeepFakeDetection_original",
-    "Deepfakes",
-    "DeepFakeDetection",
-    "Face2Face",
-    "FaceShifter",
-    "FaceSwap",
-    "NeuralTextures",
-]
-COMPRESSION = ["raw", "c23", "c40"]
-TYPE = ["videos", "masks", "models"]
-SERVERS = ["EU", "EU2", "CA"]
+NUM_SAMPLES = 5
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Downloads FaceForensics v2 public data release.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("output_path", type=str, help="Output directory.")
-    parser.add_argument(
-        "-d",
-        "--dataset",
-        type=str,
-        default="all",
-        help="Which dataset to download, either pristine or " "manipulated data or the downloaded youtube " "videos.",
-        choices=list(DATASETS.keys()) + ["all"],
-    )
-    parser.add_argument(
-        "-c",
-        "--compression",
-        type=str,
-        default="raw",
-        help="Which compression degree. All videos "
-        "have been generated with h264 with a varying "
-        "codec. Raw (c0) videos are lossless compressed.",
-        choices=COMPRESSION,
-    )
-    parser.add_argument(
-        "-t",
-        "--type",
-        type=str,
-        default="videos",
-        help="Which file type, i.e. videos, masks, for our " "manipulation methods, models, for Deepfakes.",
-        choices=TYPE,
-    )
-    parser.add_argument(
-        "-n",
-        "--num_videos",
-        type=int,
-        default=None,
-        help="Select a number of videos number to " "download if you don't want to download the full" " dataset.",
-    )
-    parser.add_argument(
-        "--server",
-        type=str,
-        default="EU",
-        help="Server to download the data from. If you "
-        "encounter a slow download speed, consider "
-        "changing the server.",
-        choices=SERVERS,
-    )
-    args = parser.parse_args()
-
-    # URLs
-    server = args.server
-    if server == "EU":
-        server_url = "http://canis.vc.in.tum.de:8100/"
-    elif server == "EU2":
-        server_url = "http://kaldir.vc.in.tum.de/faceforensics/"
-    elif server == "CA":
-        server_url = "http://falas.cmpt.sfu.ca:8100/"
-    else:
-        raise Exception("Wrong server name. Choices: {}".format(str(SERVERS)))
-    args.tos_url = server_url + "webpage/FaceForensics_TOS.pdf"
-    args.base_url = server_url + "v3/"
-    args.deepfakes_model_url = server_url + "v3/manipulated_sequences/" + "Deepfakes/models/"
-
-    return args
+def get_filelist(filelist_url):
+    lines = urllib.request.urlopen(filelist_url)
+    video_filenames = []
+    for line in lines:
+        line = line.decode("utf-8")
+        video_filename = line.rstrip("\n")
+        video_filenames.append(video_filename)
+    return video_filenames
 
 
-def download_files(filenames, base_url, output_path, report_progress=True):
+def download_files(filenames, base_url, output_path, sample_only=False):
     os.makedirs(output_path, exist_ok=True)
-    if report_progress:
-        filenames = tqdm(filenames)
-    for filename in filenames:
+    num_filenames = len(filenames) if not sample_only else NUM_SAMPLES
+    for i, filename in enumerate(filenames):
+        if i % 10 == 0:
+            print("{}/{}".format(i, num_filenames))
         download_file(base_url + filename, join(output_path, filename))
+        if sample_only and i != 0 and i % (NUM_SAMPLES - 1) == 0:
+            break
+    print("{}/{}".format(num_filenames, num_filenames))
 
 
-def reporthook(count, block_size, total_size):
-    global start_time
-    if count == 0:
-        start_time = time.time()
-        return
-    duration = time.time() - start_time
-    progress_size = int(count * block_size)
-    speed = int(progress_size / (1024 * duration))
-    percent = int(count * block_size * 100 / total_size)
-    sys.stdout.write(
-        "\rProgress: %d%%, %d MB, %d KB/s, %d seconds passed"
-        % (percent, progress_size / (1024 * 1024), speed, duration)
-    )
-    sys.stdout.flush()
-
-
-def download_file(url, out_file, report_progress=False):
+def download_file(url, out_file):
     out_dir = os.path.dirname(out_file)
     if not os.path.isfile(out_file):
         fh, out_file_tmp = tempfile.mkstemp(dir=out_dir)
         f = os.fdopen(fh, "w")
         f.close()
-        if report_progress:
-            urllib.request.urlretrieve(url, out_file_tmp, reporthook=reporthook)
-        else:
-            urllib.request.urlretrieve(url, out_file_tmp)
+        urllib.request.urlretrieve(url, out_file_tmp)
         os.rename(out_file_tmp, out_file)
     else:
-        tqdm.write("WARNING: skipping download of existing file " + out_file)
+        print("WARNING: skipping download of existing file " + out_file)
 
 
-def main(args):
+def main():
+    parser = argparse.ArgumentParser(description="Downloads FaceForensics public data release.")
+    parser.add_argument("output_path", help="directory in which to download")
+    parser.add_argument(
+        "-d",
+        "--dataset_type",
+        default="compressed",
+        help="Enter which dataset you want to download: "
+        '"raw", "compressed", "selfreenactment_raw", '
+        '"selfreenactment_compressed", '
+        '"original_videos" '
+        '"source_to_target_images" or '
+        '"selfreenactment_images".',
+    )
+    parser.add_argument("--not_altered", action="store_true", help="don't download face2face altered videos")
+    parser.add_argument("--not_original", action="store_true", help="don't download original videos")
+    parser.add_argument("--not_mask", action="store_true", help="don't download face2face mask videos")
+    parser.add_argument("--not_test", action="store_true", help="don't download videos of the test set")
+    parser.add_argument("--not_train", action="store_true", help="don't download videos of the training set")
+    parser.add_argument("--not_val", action="store_true", help="don't download videos of the validation set")
+    parser.add_argument(
+        "--sample_only",
+        action="store_true",
+        help="activate this, if you only want to download 5 files per " "subfolder",
+    )
+    args = parser.parse_args()
+
+    # Check for dataset type
+    if args.dataset_type not in DATASET_TYPES:
+        raise Exception('Wrong dataset type. Please consult "-h" for possible' "options.")
+
     # TOS
     print(
         "By pressing any key to continue you confirm that you have agreed "
         "to the FaceForensics terms of use as described at:"
     )
-    print(args.tos_url)
+    print(TOS_URL)
     print("***")
     print("Press any key to continue, or CTRL-C to exit.")
-    _ = input("")
+    key = input("")
 
-    # Extract arguments
-    c_datasets = [args.dataset] if args.dataset != "all" else ALL_DATASETS
-    c_type = args.type
-    c_compression = args.compression
-    num_videos = args.num_videos
-    output_path = args.output_path
-    os.makedirs(output_path, exist_ok=True)
+    # Check which videos to download
+    downloaded_video_types = []
+    if not args.not_altered:
+        downloaded_video_types.append("altered")
+    if not args.not_original:
+        downloaded_video_types.append("original")
+    if not "images" in args.dataset_type:
+        if not args.not_mask:
+            downloaded_video_types.append("mask")
 
-    # Check for special dataset cases
-    for dataset in c_datasets:
-        dataset_path = DATASETS[dataset]
-        # Special cases
-        if "original_youtube_videos" in dataset:
-            # Here we download the original youtube videos zip file
-            print("Downloading original youtube videos.")
-            if not "info" in dataset_path:
-                print("Please be patient, this may take a while (~40gb)")
-                suffix = ""
-            else:
-                suffix = "info"
-            download_file(
-                args.base_url + "/" + dataset_path,
-                out_file=join(output_path, "downloaded_videos{}.zip".format(suffix)),
-                report_progress=True,
+    # Check which folders to download
+    downloaded_folders = []
+    if not args.not_test:
+        downloaded_folders.append("test")
+    if not args.not_train:
+        downloaded_folders.append("train")
+    if not args.not_val:
+        downloaded_folders.append("val")
+
+    # Check for dataset type
+    if "selfreenactment" in args.dataset_type:
+        dataset = "selfreenactment"
+        dataset_type = args.dataset_type.replace("selfreenactment_", "")
+    else:
+        dataset = "source_to_target"
+        dataset_type = args.dataset_type.replace("source_to_target_", "")
+
+    # Warning
+    if not args.dataset_type == "original_videos":
+        dataset_filesize = RELEASE_DATASET_SIZE[dataset_type]
+        print("***")
+        if not args.sample_only:
+            print(
+                "WARNING: You are downloading the FaceForensics dataset {} of"
+                " size {}".format(args.dataset_type, dataset_filesize)
             )
-            return
+        print(
+            "Note that existing scan directories will be skipped. Delete "
+            "partially downloaded directories to re-download."
+        )
+        print("***")
+        print("Press any key to continue, or CTRL-C to exit.")
+        key = input("")
 
-        # Else: regular datasets
-        print('Downloading {} of dataset "{}"'.format(c_type, dataset_path))
-
-        # Get filelists and video lenghts list from server
-        if "DeepFakeDetection" in dataset_path or "actors" in dataset_path:
-            filepaths = json.loads(
-                urllib.request.urlopen(args.base_url + "/" + DEEPFEAKES_DETECTION_URL).read().decode("utf-8")
-            )
-            if "actors" in dataset_path:
-                filelist = filepaths["actors"]
+    # Download
+    print("\nDownloading dataset: {}".format(args.dataset_type))
+    if args.dataset_type == "original_videos":
+        print("Please be patient, this may take a while (~2gb)")
+        download_file(ORIGINAL_VIDEOS_URL, out_file=join(args.output_path, "faceforensics_original_videos.tar.gz"))
+    else:
+        for folder in downloaded_folders:
+            if "images" in args.dataset_type:
+                filelist_folder = "images_" + folder
             else:
-                filelist = filepaths["DeepFakesDetection"]
-        elif "original" in dataset_path:
-            # Load filelist from server
-            file_pairs = json.loads(urllib.request.urlopen(args.base_url + "/" + FILELIST_URL).read().decode("utf-8"))
-            filelist = []
-            for pair in file_pairs:
-                filelist += pair
-        else:
-            # Load filelist from server
-            file_pairs = json.loads(urllib.request.urlopen(args.base_url + "/" + FILELIST_URL).read().decode("utf-8"))
-            # Get filelist
-            filelist = []
-            for pair in file_pairs:
-                filelist.append("_".join(pair))
-                if c_type != "models":
-                    filelist.append("_".join(pair[::-1]))
-        # Maybe limit number of videos for download
-        if num_videos is not None and num_videos > 0:
-            print("Downloading the first {} videos".format(num_videos))
-            filelist = filelist[:num_videos]
-
-        # Server and local paths
-        dataset_videos_url = args.base_url + "{}/{}/{}/".format(dataset_path, c_compression, c_type)
-        dataset_mask_url = args.base_url + "{}/{}/videos/".format(dataset_path, "masks", c_type)
-
-        if c_type == "videos":
-            dataset_output_path = join(output_path, dataset_path, c_compression, c_type)
-            print("Output path: {}".format(dataset_output_path))
-            filelist = [filename + ".mp4" for filename in filelist]
-            download_files(filelist, dataset_videos_url, dataset_output_path)
-        elif c_type == "masks":
-            dataset_output_path = join(output_path, dataset_path, c_type, "videos")
-            print("Output path: {}".format(dataset_output_path))
-            if "original" in dataset:
-                if args.dataset != "all":
-                    print("Only videos available for original data. Aborting.")
-                    return
-                else:
-                    print("Only videos available for original data. " "Skipping original.\n")
-                    continue
-            if "FaceShifter" in dataset:
-                print("Masks not available for FaceShifter. Aborting.")
-                return
-            filelist = [filename + ".mp4" for filename in filelist]
-            download_files(filelist, dataset_mask_url, dataset_output_path)
-
-        # Else: models for deepfakes
-        else:
-            if dataset != "Deepfakes" and c_type == "models":
-                print("Models only available for Deepfakes. Aborting")
-                return
-            dataset_output_path = join(output_path, dataset_path, c_type)
-            print("Output path: {}".format(dataset_output_path))
-
-            # Get Deepfakes models
-            for folder in tqdm(filelist):
-                folder_filelist = DEEPFAKES_MODEL_NAMES
-
-                # Folder paths
-                folder_base_url = args.deepfakes_model_url + folder + "/"
-                folder_dataset_output_path = join(dataset_output_path, folder)
-                download_files(
-                    folder_filelist, folder_base_url, folder_dataset_output_path, report_progress=False
-                )  # already done
+                filelist_folder = folder
+            filelist_url = BASE_URL + "{}/filelists/{}.txt".format(dataset, filelist_folder)
+            filenames = get_filelist(filelist_url)
+            print("\nDownloading {}".format(folder))
+            for video_type in downloaded_video_types:
+                output_path = join(args.output_path, "FaceForensics_{}".format(args.dataset_type), folder, video_type)
+                print("{}/{} > {}".format(folder, video_type, output_path))
+                base_url = BASE_URL + "{}/{}/{}/{}/".format(dataset, dataset_type, folder, video_type)
+                download_files(filenames, base_url, output_path=output_path, sample_only=args.sample_only)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main()

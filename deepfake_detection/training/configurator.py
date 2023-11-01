@@ -29,6 +29,21 @@ class TrainingConfig(BaseModel):
     scheduler_config: SchedulerConfig
 
 
+baseline_config = TrainingConfig(
+    model_key="b4",
+    seed=111,
+    batch_size=20,
+    batches_per_epoch=5000,
+    max_epochs=80,
+    evaluation_frequency=1,
+    img_height=380,
+    img_width=380,
+    fake_threshold=0.8,
+    early_stopping_threshold=3,
+    optim_config=OptimizerConfig(optim_type="Adam", learning_rate=0.005, momentum=0.9, weight_decay=1e-4),
+    scheduler_config=SchedulerConfig(scheduler_type="cosine", params={"T_max": 30, "eta_min": 0.0005}),
+)
+
 default_config = TrainingConfig(
     model_key="b4",
     seed=111,
@@ -61,7 +76,11 @@ default_config_b7 = TrainingConfig(
 
 
 def get_config(config_name: str) -> TrainingConfig:
-    configs = {"default_config": default_config, "default_config_b7": default_config_b7}
+    configs = {
+        "default_config": default_config,
+        "default_config_b7": default_config_b7,
+        "baseline_config": baseline_config,
+    }
 
     config = configs[config_name]
 
