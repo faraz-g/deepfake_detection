@@ -17,11 +17,14 @@ class DeepFakeDetectionDataset(Dataset):
         data_path: str | Path,
         data_folder_path: str | Path,
         augmentations: Compose | None,
+        dataset: str = None,
     ) -> None:
         super().__init__()
         self.mode = mode
         df = pd.read_csv(os.path.join(data_folder_path, data_path))
         df = df.reset_index()
+        if dataset is not None:
+            df = df[df["dataset"] == dataset]
         self.images_df = df[["cropped_face_path", "label", "dataset"]]
         self.data_folder_path = data_folder_path
         self.augmentations = augmentations
