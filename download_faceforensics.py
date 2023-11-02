@@ -17,6 +17,9 @@ import urllib
 import urllib.request
 import tempfile
 from os.path import join
+from multiprocessing import Pool
+from functools import partial
+from tqdm import tqdm
 
 
 SERVER_URL = "http://kaldir.vc.in.tum.de/FaceForensics/"
@@ -49,25 +52,33 @@ def get_filelist(filelist_url):
 def download_files(filenames, base_url, output_path, sample_only=False):
     os.makedirs(output_path, exist_ok=True)
     num_filenames = len(filenames) if not sample_only else NUM_SAMPLES
-    for i, filename in enumerate(filenames):
-        if i % 10 == 0:
-            print("{}/{}".format(i, num_filenames))
-        download_file(base_url + filename, join(output_path, filename))
-        if sample_only and i != 0 and i % (NUM_SAMPLES - 1) == 0:
-            break
-    print("{}/{}".format(num_filenames, num_filenames))
+
+    # Create a partial function with fixed arguments except for the filename
+    partial_download_file = partial(download_file, base_url=base_url, output_path=output_path)
+
+    # Choose the number of worker processes
+    num_workers = os.cpu_count()
+
+    # Use a context manager to handle the creation and destruction of the pool
+    with Pool(processes=num_workers) as pool:
+        # Wrap pool.imap with tqdm for a progress bar
+        for _ in tqdm(pool.imap(partial_download_file, filenames[:num_filenames]), total=num_filenames):
+            pass
 
 
-def download_file(url, out_file):
-    out_dir = os.path.dirname(out_file)
+def download_file(filename, base_url, output_path):
+    url = base_url + filename
+    out_file = os.path.join(output_path, filename)
+
     if not os.path.isfile(out_file):
-        fh, out_file_tmp = tempfile.mkstemp(dir=out_dir)
-        f = os.fdopen(fh, "w")
-        f.close()
-        urllib.request.urlretrieve(url, out_file_tmp)
-        os.rename(out_file_tmp, out_file)
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, dir=output_path) as tmp_file:
+                urllib.request.urlretrieve(url, tmp_file.name)
+            os.rename(tmp_file.name, out_file)
+        except Exception as e:
+            print(f"ERROR: Could not download {url} - {e}")
     else:
-        print("WARNING: skipping download of existing file " + out_file)
+        print(f"WARNING: skipping download of existing file {out_file}")
 
 
 def main():
