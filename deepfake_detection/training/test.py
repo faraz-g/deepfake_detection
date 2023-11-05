@@ -12,12 +12,12 @@ import pandas as pd
 from pathlib import Path
 
 
-def test(checkpoint_path: str, config_name: str, out_dir: str):
+def test(checkpoint_path: str, config_name: str, model_dir: str, out_dir: str):
     os.makedirs(out_dir, exist_ok=True)
     config = get_config(config_name=config_name)
     model = Classifier(model_key=config.model_key)
     checkpoint_path = Path(checkpoint_path)
-    saved_model = torch.load(MODEL_OUT_PATH / checkpoint_path)
+    saved_model = torch.load(model_dir / checkpoint_path)
 
     model.load_state_dict(saved_model["state"])
 
@@ -64,6 +64,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_path", type=str)
     parser.add_argument("--config_name", type=str, default="default_config")
     parser.add_argument("--out_dir", type=str, default=TEST_OUT_PATH)
+    parser.add_argument("--model_dir", type=str, default=MODEL_OUT_PATH)
 
     args = parser.parse_args()
 
